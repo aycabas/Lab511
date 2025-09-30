@@ -7,7 +7,7 @@
 param resourcePrefix string = 'lab511'
 
 @description('The location where all resources will be deployed')
-param location string = resourceGroup().location
+param location string = 'eastus'
 
 @description('Storage account SKU')
 @allowed(['Standard_LRS', 'Standard_GRS', 'Standard_RAGRS', 'Standard_ZRS'])
