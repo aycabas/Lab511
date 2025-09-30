@@ -9,9 +9,6 @@ param resourcePrefix string = 'lab511'
 @description('The location where all resources will be deployed')
 param location string = 'eastus'
 
-@description('Lab user object ID for role assignments')
-param labUserObjectId string
-
 @description('Storage account SKU')
 @allowed(['Standard_LRS', 'Standard_GRS', 'Standard_RAGRS', 'Standard_ZRS'])
 param storageAccountSku string = 'Standard_RAGRS'
@@ -343,9 +340,6 @@ output gpt5DeploymentName string = gpt5ModelDeployment.name
 
 @description('GPT-5 mini model deployment name')
 output gpt5MiniDeploymentName string = gpt5MiniModelDeployment.name
-
-@description('Lab user object ID')
-output labUserObjectId string = labUserObjectId
 
 // ===============================================
 // USAGE NOTES
