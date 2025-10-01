@@ -256,14 +256,14 @@ resource userSearchContributorRoleAssignment 'Microsoft.Authorization/roleAssign
   }
 }
 
-// Search Index Data Contributor role for lab user
+// Search Index Data Reader role for lab user
 resource userSearchIndexContributorRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(subscription().id, resourceGroup().id, searchService.name, labUserObjectId, '8ebe5a00-799e-43f5-93ac-243d3dce84a7')
+  name: guid(subscription().id, resourceGroup().id, searchService.name, labUserObjectId, '1407120a-92aa-4202-b7e9-c0e197c71c8f')
   scope: searchService
   properties: {
     principalId: labUserObjectId
     principalType: 'User'
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '8ebe5a00-799e-43f5-93ac-243d3dce84a7')
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '1407120a-92aa-4202-b7e9-c0e197c71c8f')
   }
 }
 
@@ -293,9 +293,9 @@ resource userOpenAiUserRoleAssignment 'Microsoft.Authorization/roleAssignments@2
 resource CogsUserRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(subscription().id, resourceGroup().id, searchService.name, 'a97b65f3-24c7-4388-baec-2e87135dc908')
   properties: {
-    principalId: searchService.identity.principalId
+    principalId: labUserObjectId
     principalType: 'User'
-    roleDefinitionId: resourceId('Microsoft.Authorization/roleDefinitions', 'a97b65f3-24c7-4388-baec-2e87135dc908')
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'a97b65f3-24c7-4388-baec-2e87135dc908')
   }
 }
 
