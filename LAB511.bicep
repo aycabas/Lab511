@@ -106,7 +106,7 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2023-05-01' = {
       }
       keySource: 'Microsoft.Storage'
     }
-    networkRuleSet: {
+    networkAcls: {
       bypass: 'AzureServices'
       virtualNetworkRules: []
       ipRules: []
@@ -508,6 +508,7 @@ resource uploadDocs 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
     azCliVersion: '2.62.0'
     timeout: 'PT30M'
     retentionInterval: 'P1D'
+    // bump this to force re-run when you edit
     forceUpdateTag: scriptForceTag
     environmentVariables: [
       { name: 'ZIP_URL', value: repoZipUrl }
@@ -516,22 +517,23 @@ resource uploadDocs 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
       { name: 'CONN_STR', secureValue: storageConnStrA }
     ]
     scriptContent: '''
-set -e
+set -euo pipefail
 
 echo "Downloading repo zip to /tmp/lab511/repo.zip ..."
 mkdir -p /tmp/lab511
 cd /tmp/lab511
 
 python3 - << 'PY'
-import urllib.request, ssl
+import os, sys, urllib.request, ssl
+url = os.environ.get("ZIP_URL")
+if not url or not url.startswith(("http://","https://")):
+    sys.exit(f"Invalid or missing ZIP_URL: {url!r}")
 ctx = ssl.create_default_context()
 ctx.check_hostname = False
 ctx.verify_mode = ssl.CERT_NONE
-url = "${ZIP_URL}"
-out = "repo.zip"
-with urllib.request.urlopen(url, context=ctx) as resp, open(out, "wb") as f:
+with urllib.request.urlopen(url, context=ctx) as resp, open("repo.zip", "wb") as f:
     f.write(resp.read())
-print("Downloaded", out)
+print("✅ Downloaded repo.zip from", url)
 PY
 
 echo "Extracting via python zipfile..."
@@ -541,27 +543,29 @@ with zipfile.ZipFile("repo.zip") as z:
     z.extractall(".")
 PY
 
+echo "Archive contents (depth 2):"
+find . -maxdepth 2 -type d | sed 's|^\./||'
+
 if [ ! -d "${DATA_FOLDER}" ]; then
   echo "ERROR: Expected data folder '${DATA_FOLDER}' not found in archive."
-  echo "Hint: Check that the folder name matches the zip root (e.g., Lab511-main/data)."
+  echo "Hint: If the root is 'Lab511-main', use 'Lab511-main/data'."
   exit 1
 fi
 
-echo "Uploading contents of ${DATA_FOLDER} to container ${CONTAINER}"
+echo "Uploading contents of ${DATA_FOLDER} to container ${CONTAINER} ..."
 az storage blob upload-batch \
   --connection-string "${CONN_STR}" \
   --destination "${CONTAINER}" \
   --source "${DATA_FOLDER}" \
   --no-progress
 
-echo "Upload complete."
+echo "✅ Upload complete."
 '''
   }
   dependsOn: [
     documentsContainer
   ]
 }
-
 
 // ===============================================
 // STEP 2: Create Blob Knowledge Source (data-plane via REST)
