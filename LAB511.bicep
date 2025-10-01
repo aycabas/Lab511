@@ -225,29 +225,35 @@ resource embeddingModelDeployment 'Microsoft.CognitiveServices/accounts/deployme
     name: 'Standard'
     capacity: embeddingModelCapacity
   }
+  dependsOn: [
+    openAiService
+  ]
 }
 
 // ===============================================
 // GPT-5 MODEL DEPLOYMENT
 // ===============================================
 
-@description('GPT-5 model deployment for chat and reasoning')
-resource gpt5ModelDeployment 'Microsoft.CognitiveServices/accounts/deployments@2023-10-01-preview' = {
-  parent: openAiService
-  name: resourceNames.gpt5Deployment
-  properties: {
-    model: {
-      format: 'OpenAI'
-      name: gpt5ModelName
-      version: gpt5ModelVersion
-    }
-    raiPolicyName: 'Microsoft.Default'
-  }
-  sku: {
-    name: 'GlobalStandard'
-    capacity: gpt5Capacity
-  }
-}
+//@description('GPT-5 model deployment for chat and reasoning')
+//resource gpt5ModelDeployment 'Microsoft.CognitiveServices/accounts/deployments@2023-10-01-preview' = {
+//  parent: openAiService
+//  name: resourceNames.gpt5Deployment
+//  properties: {
+//    model: {
+//      format: 'OpenAI'
+//      name: gpt5ModelName
+//      version: gpt5ModelVersion
+//    }
+//    raiPolicyName: 'Microsoft.Default'
+//  }
+//  sku: {
+//    name: 'GlobalStandard'
+//    capacity: gpt5Capacity
+//  }
+//  dependsOn: [
+//    openAiService
+//  ]
+//}
 
 // ===============================================
 // GPT-5 MINI MODEL DEPLOYMENT
@@ -269,49 +275,88 @@ resource gpt5MiniModelDeployment 'Microsoft.CognitiveServices/accounts/deploymen
     name: 'GlobalStandard'
     capacity: gpt5MiniCapacity
   }
+  dependsOn: [
+    embeddingModelDeployment
+  ]
 }
 
 // ===============================================
 // SERVICE PRINCIPAL ROLE ASSIGNMENTS
 // ===============================================
+// Contributor at RG scope
+resource userRgContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(subscription().id, resourceGroup().id, searchService.identity.principalId, 'b24988ac-6180-42a0-ab88-20f7382dd24c')
+  scope: resourceGroup()
+  properties: {
+    principalId: searchService.identity.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b24988ac-6180-42a0-ab88-20f7382dd24c')
+  }
+}
+
+// Storage Blob Data Contributor role for lab user
+resource SPuserStorageContributorRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(subscription().id, resourceGroup().id, storageAccount.name, searchService.identity.principalId, 'ba92f5b4-2d11-453d-a403-e96b0029c9fe')
+  scope: storageAccount
+  properties: {
+    principalId: searchService.identity.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe')
+  }
+}
+
+// Search Service Contributor role for lab user
+resource SPuserSearchContributorRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(subscription().id, resourceGroup().id, searchService.name, searchService.identity.principalId, '7ca78c08-252a-4471-8644-bb5ff32d4ba0')
+  scope: searchService
+  properties: {
+    principalId: searchService.identity.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7ca78c08-252a-4471-8644-bb5ff32d4ba0')
+  }
+}
+
+// Search Index Data Reader role for lab user
+resource SPuserSearchIndexContributorRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(subscription().id, resourceGroup().id, searchService.name, searchService.identity.principalId, '1407120a-92aa-4202-b7e9-c0e197c71c8f')
+  scope: searchService
+  properties: {
+    principalId: searchService.identity.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '1407120a-92aa-4202-b7e9-c0e197c71c8f')
+  }
+}
+
+// Cognitive Services Contributor role for lab user
+resource SPuserOpenAiContributorRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(subscription().id, resourceGroup().id, openAiService.name, searchService.identity.principalId, '25fbc0a9-bd7c-42a3-aa1a-3b75d497ee68')
+  scope: openAiService
+  properties: {
+    principalId: searchService.identity.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '25fbc0a9-bd7c-42a3-aa1a-3b75d497ee68')
+  }
+}
+
+// Cognitive Services OpenAI User role for lab user
+resource SPuserOpenAiUserRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(subscription().id, resourceGroup().id, openAiService.name, searchService.identity.principalId, '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd')
+  scope: openAiService
+  properties: {
+    principalId: searchService.identity.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd')
+  }
+}
 
 // Cognitive Services User
-resource CogsUserSPRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(subscription().id, resourceGroup().id, searchService.name, 'a97b65f3-24c7-4388-baec-2e87135dc908')
+resource SPCogsUserRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(subscription().id, resourceGroup().id, searchService.name, searchService.identity.principalId, 'a97b65f3-24c7-4388-baec-2e87135dc908')
+  scope: searchService
   properties: {
     principalId: searchService.identity.principalId
     principalType: 'ServicePrincipal'
-    roleDefinitionId: resourceId('Microsoft.Authorization/roleDefinitions', 'a97b65f3-24c7-4388-baec-2e87135dc908')
-  }
-}
-
-// OpenAI host role assignment (scoped to the OpenAI resource group's scope)
-resource openAiRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(subscription().id, resourceGroup().id, searchService.name, '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd')
-  properties: {
-    principalId: searchService.identity.principalId
-    principalType: 'ServicePrincipal'
-    roleDefinitionId: resourceId('Microsoft.Authorization/roleDefinitions', '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd')
-  }
-}
-
-// Storage Blob Data Reader role (scoped to the storage resource group)
-resource storageReaderRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(subscription().id, resourceGroup().id, searchService.name, '2a2b9908-6ea1-4ae2-8e65-a410df84e7d1')
-  properties: {
-    principalId: searchService.identity.principalId
-    principalType: 'ServicePrincipal'
-    roleDefinitionId: resourceId('Microsoft.Authorization/roleDefinitions', '2a2b9908-6ea1-4ae2-8e65-a410df84e7d1')
-  }
-}
-
-// Storage Blob Data Contributor role (scoped to the storage resource group)
-resource storageContributorRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(subscription().id, resourceGroup().id, searchService.name, 'ba92f5b4-2d11-453d-a403-e96b0029c9fe')
-  properties: {
-    principalId: searchService.identity.principalId
-    principalType: 'ServicePrincipal'
-    roleDefinitionId: resourceId('Microsoft.Authorization/roleDefinitions', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe')
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'a97b65f3-24c7-4388-baec-2e87135dc908')
   }
 }
 
@@ -387,7 +432,7 @@ resource userOpenAiUserRoleAssignment 'Microsoft.Authorization/roleAssignments@2
 
 // Cognitive Services User
 resource CogsUserRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(subscription().id, resourceGroup().id, searchService.name, 'a97b65f3-24c7-4388-baec-2e87135dc908')
+  name: guid(subscription().id, resourceGroup().id, searchService.name, labUserObjectId, 'a97b65f3-24c7-4388-baec-2e87135dc908')
   scope: searchService
   properties: {
     principalId: labUserObjectId
@@ -430,11 +475,11 @@ output resourceGroupLocation string = location
 @description('Unique suffix used for resource naming')
 output uniqueSuffix string = uniqueSuffix
 
-@description('GPT-5 model deployment name')
-output gpt5DeploymentName string = gpt5ModelDeployment.name
+//@description('GPT-5 model deployment name')
+//output gpt5DeploymentName string = gpt5ModelDeployment.name
 
-@description('GPT-5 mini model deployment name')
-output gpt5MiniDeploymentName string = gpt5MiniModelDeployment.name
+//@description('GPT-5 mini model deployment name')
+//output gpt5MiniDeploymentName string = gpt5MiniModelDeployment.name
 
 @description('Lab user object ID')
 output labUserObjectId string = labUserObjectId
@@ -456,41 +501,35 @@ var saKeysA = listKeys(storageAccount.id, '2023-05-01')
 var storageConnStrA = 'DefaultEndpointsProtocol=https;AccountName=${storageAccount.name};AccountKey=${saKeysA.keys[0].value};EndpointSuffix=${environment().suffixes.storage}'
 
 resource uploadDocs 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
-  name: '${resourcePrefix}-upload-docs'
-  location: location
-  kind: 'AzureCLI'
-  // identity omitted (optional per spec)
-  properties: {
-    azCliVersion: '2.62.0'
-    timeout: 'PT30M'
-    retentionInterval: 'P1D'
-    // String only (no utcNow()). Bump scriptForceTag to re-run.
-    forceUpdateTag: scriptForceTag
-    environmentVariables: [
-      { name: 'ZIP_URL', value: repoZipUrl }
-      { name: 'DATA_FOLDER', value: repoDataFolder }
-      { name: 'CONTAINER', value: documentsContainer.name } // 'documents'
-      { name: 'CONN_STR', secureValue: storageConnStrA }
-      { name: 'ACCOUNT', value: storageAccount.name }
-    ]
-    // Using Python's zipfile (no dependency on 'unzip')
-    scriptContent: '''
+scriptContent: '''
 set -e
 
-echo "Downloading repo zip: ${ZIP_URL}"
+echo "Downloading repo zip to /tmp/lab511/repo.zip ..."
 mkdir -p /tmp/lab511
 cd /tmp/lab511
-curl -L -o repo.zip "${ZIP_URL}"
+
+python3 - << 'PY'
+import urllib.request, ssl
+ctx = ssl.create_default_context()
+ctx.check_hostname = False
+ctx.verify_mode = ssl.CERT_NONE
+url = "${ZIP_URL}"
+out = "repo.zip"
+with urllib.request.urlopen(url, context=ctx) as resp, open(out, "wb") as f:
+    f.write(resp.read())
+print("Downloaded", out)
+PY
 
 echo "Extracting via python zipfile..."
 python3 - << 'PY'
 import zipfile
-with zipfile.ZipFile('repo.zip') as z:
-    z.extractall('.')
+with zipfile.ZipFile("repo.zip") as z:
+    z.extractall(".")
 PY
 
 if [ ! -d "${DATA_FOLDER}" ]; then
   echo "ERROR: Expected data folder '${DATA_FOLDER}' not found in archive."
+  echo "Hint: Check that the folder name matches the zip root (e.g., Lab511-main/data)."
   exit 1
 fi
 
@@ -499,15 +538,11 @@ az storage blob upload-batch \
   --connection-string "${CONN_STR}" \
   --destination "${CONTAINER}" \
   --source "${DATA_FOLDER}" \
-  --pattern "*" \
   --no-progress
 
 echo "Upload complete."
 '''
-  }
-  dependsOn: [
-    documentsContainer
-  ]
+
 }
 
 // ===============================================
@@ -532,8 +567,8 @@ var openAiKeysB = listKeys(openAiService.id, '2023-10-01-preview')
 var openAiEndpointB = openAiService.properties.endpoint
 
 // Choose which chat deployment to use when useVerbalization = true
-var chatDeploymentForVerbalization = resourceNames.gpt5Deployment
-var chatModelForVerbalization = gpt5ModelName
+var chatDeploymentForVerbalization = resourceNames.gpt5MiniModelDeployment
+var chatModelForVerbalization = gpt5MiniDeploymentName
 
 resource createKnowledgeSource 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
   name: '${resourcePrefix}-ks-create'
