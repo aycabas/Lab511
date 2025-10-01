@@ -285,7 +285,7 @@ resource gpt5MiniModelDeployment 'Microsoft.CognitiveServices/accounts/deploymen
 // ===============================================
 // Contributor at RG scope
 resource SPuserRgContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(subscription().id, resourceGroup().id, searchService.identity.principalId, 'b24988ac-6180-42a0-ab88-20f7382dd24c')
+  guid(uniqueSuffix, 'sp-rg-contributor') 
   scope: resourceGroup()
   properties: {
     principalId: searchService.identity.principalId
@@ -296,7 +296,7 @@ resource SPuserRgContributor 'Microsoft.Authorization/roleAssignments@2022-04-01
 
 // Storage Blob Data Contributor role for lab user
 resource SPuserStorageContributorRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(subscription().id, resourceGroup().id, storageAccount.name, searchService.identity.principalId, 'ba92f5b4-2d11-453d-a403-e96b0029c9fe')
+  name: guid(uniqueSuffix, 'sp-storage-contributor') 
   scope: storageAccount
   properties: {
     principalId: searchService.identity.principalId
@@ -307,7 +307,7 @@ resource SPuserStorageContributorRoleAssignment 'Microsoft.Authorization/roleAss
 
 // Search Service Contributor role for lab user
 resource SPuserSearchContributorRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(subscription().id, resourceGroup().id, searchService.name, searchService.identity.principalId, '7ca78c08-252a-4471-8644-bb5ff32d4ba0')
+  name: guid(uniqueSuffix, 'sp-search-contributor') 
   scope: searchService
   properties: {
     principalId: searchService.identity.principalId
@@ -318,7 +318,7 @@ resource SPuserSearchContributorRoleAssignment 'Microsoft.Authorization/roleAssi
 
 // Search Index Data Reader role for lab user
 resource SPuserSearchIndexContributorRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(subscription().id, resourceGroup().id, searchService.name, searchService.identity.principalId, '1407120a-92aa-4202-b7e9-c0e197c71c8f')
+  name: guid(uniqueSuffix, 'sp-data-reader') 
   scope: searchService
   properties: {
     principalId: searchService.identity.principalId
@@ -329,7 +329,7 @@ resource SPuserSearchIndexContributorRoleAssignment 'Microsoft.Authorization/rol
 
 // Cognitive Services Contributor role for lab user
 resource SPuserOpenAiContributorRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(subscription().id, resourceGroup().id, openAiService.name, searchService.identity.principalId, '25fbc0a9-bd7c-42a3-aa1a-3b75d497ee68')
+  name: guid(uniqueSuffix, 'sp-openai-contributor') 
   scope: openAiService
   properties: {
     principalId: searchService.identity.principalId
@@ -340,7 +340,7 @@ resource SPuserOpenAiContributorRoleAssignment 'Microsoft.Authorization/roleAssi
 
 // Cognitive Services OpenAI User role for lab user
 resource SPuserOpenAiUserRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(subscription().id, resourceGroup().id, openAiService.name, searchService.identity.principalId, '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd')
+  name: guid(uniqueSuffix, 'sp-openai-user') 
   scope: openAiService
   properties: {
     principalId: searchService.identity.principalId
@@ -351,7 +351,7 @@ resource SPuserOpenAiUserRoleAssignment 'Microsoft.Authorization/roleAssignments
 
 // Cognitive Services User
 resource SPCogsUserRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(subscription().id, resourceGroup().id, searchService.name, searchService.identity.principalId, 'a97b65f3-24c7-4388-baec-2e87135dc908')
+  name: guid(uniqueSuffix, 'sp-cog-user') 
   scope: searchService
   properties: {
     principalId: searchService.identity.principalId
