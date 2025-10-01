@@ -596,12 +596,11 @@ resource createKnowledgeSource 'Microsoft.Resources/deploymentScripts@2023-08-01
   name: '${resourcePrefix}-ks-create'
   location: location
   kind: 'AzureCLI'
-  // identity omitted (optional per spec)
   properties: {
     azCliVersion: '2.62.0'
-    timeout: 'PT30M'
+    timeout: 'PT10M'                 // keep short; creation is quick
     retentionInterval: 'P1D'
-    forceUpdateTag: scriptForceTag
+    forceUpdateTag: scriptForceTag   // bump param to force re-run after edits
     environmentVariables: [
       { name: 'SEARCH_URL', value: searchEndpointB }
       { name: 'SEARCH_ADMIN_KEY', value: searchAdminKeysB.primaryKey }
@@ -618,7 +617,7 @@ resource createKnowledgeSource 'Microsoft.Resources/deploymentScripts@2023-08-01
       { name: 'USE_VERBALIZATION', value: string(useVerbalization) }
     ]
     scriptContent: '''
-set -e
+set -euo pipefail
 
 echo "Creating knowledge source '${KS_NAME}' at ${SEARCH_URL}"
 
@@ -637,7 +636,7 @@ if [ "${USE_VERBALIZATION}" = "true" ]; then
   "azureBlobParameters": {
     "connectionString": "${STORAGE_CONN}",
     "containerName": "${CONTAINER}",
-    "folderPath": ${FP_JSON},
+    "folderPath": __FP_JSON__,
     "embeddingModel": {
       "kind": "azureOpenAI",
       "azureOpenAIParameters": {
@@ -668,7 +667,7 @@ else
   "azureBlobParameters": {
     "connectionString": "${STORAGE_CONN}",
     "containerName": "${CONTAINER}",
-    "folderPath": ${FP_JSON},
+    "folderPath": __FP_JSON__,
     "embeddingModel": {
       "kind": "azureOpenAI",
       "azureOpenAIParameters": {
@@ -684,14 +683,23 @@ else
 JSON
 fi
 
-# PUT knowledge source (preview api-version)
+# Patch in the folderPath JSON (null vs. string) safely
+python3 - << PY
+import json
+s = open('body.json','r',encoding='utf-8').read()
+s = s.replace('__FP_JSON__', 'null' if "${FP_JSON}" == "null" else json.dumps("${FOLDER}"))
+open('body.json','w',encoding='utf-8').write(s)
+print("Prepared body.json with folderPath")
+PY
+
+# PUT knowledge source (preview api-version). Creation is async; we do not wait for ingestion.
 az rest \
   --method put \
   --url "${SEARCH_URL}/knowledgeSources/${KS_NAME}?api-version=2025-08-01-preview" \
   --headers "Content-Type=application/json" "api-key=${SEARCH_ADMIN_KEY}" \
   --body @body.json
 
-echo "Knowledge source created/updated: ${KS_NAME}"
+echo "✅ Knowledge source '${KS_NAME}' registered. Ingestion will continue asynchronously."
 '''
   }
   dependsOn: [
