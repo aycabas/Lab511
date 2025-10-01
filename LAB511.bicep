@@ -3,6 +3,9 @@
 // Creates: Storage Account, AI Search, Search Index, OpenAI Service, Text Embedding Model
 // ===============================================
 
+@description('Lab user object ID for role assignments')
+param labUserObjectId string
+
 @description('The name prefix for all resources')
 param resourcePrefix string = 'lab511'
 
@@ -206,6 +209,43 @@ resource storageContributorRoleAssignment 'Microsoft.Authorization/roleAssignmen
 }
 
 // ===============================================
+// LAB USER ROLE ASSIGNMENTS
+// ===============================================
+
+// Storage Blob Data Contributor role for lab user
+resource userStorageContributorRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(subscription().id, resourceGroup().id, storageAccount.name, labUserObjectId, 'ba92f5b4-2d11-453d-a403-e96b0029c9fe')
+  scope: storageAccount
+  properties: {
+    principalId: labUserObjectId
+    principalType: 'User'
+    roleDefinitionId: resourceId('Microsoft.Authorization/roleDefinitions', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe')
+  }
+}
+
+// Search Service Contributor role for lab user
+resource userSearchContributorRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(subscription().id, resourceGroup().id, searchService.name, labUserObjectId, '7ca78c08-252a-4471-8644-bb5ff32d4ba0')
+  scope: searchService
+  properties: {
+    principalId: labUserObjectId
+    principalType: 'User'
+    roleDefinitionId: resourceId('Microsoft.Authorization/roleDefinitions', '7ca78c08-252a-4471-8644-bb5ff32d4ba0')
+  }
+}
+
+// Cognitive Services OpenAI User role for lab user
+resource userOpenAiUserRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(subscription().id, resourceGroup().id, openAiService.name, labUserObjectId, '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd')
+  scope: openAiService
+  properties: {
+    principalId: labUserObjectId
+    principalType: 'User'
+    roleDefinitionId: resourceId('Microsoft.Authorization/roleDefinitions', '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd')
+  }
+}
+
+// ===============================================
 // AZURE OPENAI SERVICE
 // ===============================================
 
@@ -340,6 +380,9 @@ output gpt5DeploymentName string = gpt5ModelDeployment.name
 
 @description('GPT-5 mini model deployment name')
 output gpt5MiniDeploymentName string = gpt5MiniModelDeployment.name
+
+@description('Lab user object ID')
+output labUserObjectId string = labUserObjectId
 
 // ===============================================
 // USAGE NOTES
