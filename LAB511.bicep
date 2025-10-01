@@ -284,7 +284,7 @@ resource gpt5MiniModelDeployment 'Microsoft.CognitiveServices/accounts/deploymen
 // SERVICE PRINCIPAL ROLE ASSIGNMENTS
 // ===============================================
 // Contributor at RG scope
-resource userRgContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+resource SPuserRgContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(subscription().id, resourceGroup().id, searchService.identity.principalId, 'b24988ac-6180-42a0-ab88-20f7382dd24c')
   scope: resourceGroup()
   properties: {
