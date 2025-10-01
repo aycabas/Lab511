@@ -1,6 +1,6 @@
 // ===============================================
-// Bicep template for LAB565 - Microsoft 365 Copilot Agents
-// Creates: Storage Account, AI Search, Search Index, OpenAI Service, Text Embedding Model
+// Bicep template for LAB511
+// Creates: Storage Account, AI Search, Search Index, OpenAI Service, GPT5, GPT5Mini, Text Embedding Model
 // ===============================================
 
 @description('Lab user object ID for role assignments')
