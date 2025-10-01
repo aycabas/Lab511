@@ -59,6 +59,7 @@ param gpt5MiniModelVersion string = '2025-08-07'
 param gpt5MiniCapacity int = 50
 
 
+
 // Variables for resource naming and configuration
 var uniqueSuffix = uniqueString(resourceGroup().id)
 var resourceNames = {
@@ -496,6 +497,8 @@ param repoZipUrl string = 'https://github.com/aycabas/Lab511/archive/refs/heads/
 @description('Relative folder inside the repo to upload (root of content).')
 param repoDataFolder string = 'Lab511-main/data'
 
+var saKeysA = listKeys(storageAccount.id, '2023-05-01')
+var storageConnStrA = 'DefaultEndpointsProtocol=https;AccountName=${storageAccount.name};AccountKey=${saKeysA.keys[0].value};EndpointSuffix=${environment().suffixes.storage}'
 
 resource uploadDocs 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
   name: '${resourcePrefix}-upload-docs'
@@ -503,8 +506,9 @@ resource uploadDocs 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
   kind: 'AzureCLI'
   properties: {
     azCliVersion: '2.62.0'
-    timeout: 'PT60M'                  // ⚠️ was PT30M
+    timeout: 'PT60M'
     retentionInterval: 'P1D'
+    // bump this to force re-run when you edit
     forceUpdateTag: scriptForceTag
     environmentVariables: [
       { name: 'ZIP_URL', value: repoZipUrl }
@@ -515,7 +519,7 @@ resource uploadDocs 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
     scriptContent: '''
 set -euo pipefail
 
-echo "[uploadDocs] Downloading repo zip to /tmp/lab511/repo.zip ..."
+echo "Downloading repo zip to /tmp/lab511/repo.zip ..."
 mkdir -p /tmp/lab511
 cd /tmp/lab511
 
@@ -528,18 +532,20 @@ ctx = ssl.create_default_context()
 ctx.check_hostname = False
 ctx.verify_mode = ssl.CERT_NONE
 with urllib.request.urlopen(url, context=ctx) as resp, open("repo.zip", "wb") as f:
+
+
     f.write(resp.read())
 print("✅ Downloaded repo.zip from", url)
 PY
 
-echo "[uploadDocs] Extracting via python zipfile..."
+echo "Extracting via python zipfile..."
 python3 - << 'PY'
 import zipfile
 with zipfile.ZipFile("repo.zip") as z:
     z.extractall(".")
 PY
 
-echo "[uploadDocs] Archive contents (depth 2):"
+echo "Archive contents (depth 2):"
 find . -maxdepth 2 -type d | sed 's|^\./||'
 
 if [ ! -d "${DATA_FOLDER}" ]; then
@@ -548,16 +554,14 @@ if [ ! -d "${DATA_FOLDER}" ]; then
   exit 1
 fi
 
-echo "[uploadDocs] Uploading contents of ${DATA_FOLDER} to container ${CONTAINER} ..."
+echo "Uploading contents of ${DATA_FOLDER} to container ${CONTAINER} ..."
 az storage blob upload-batch \
   --connection-string "${CONN_STR}" \
   --destination "${CONTAINER}" \
   --source "${DATA_FOLDER}" \
-  --no-progress \
-  --max-connections 32 \
-  --only-show-errors
+  --no-progress
 
-echo "✅ [uploadDocs] Upload complete."
+echo "✅ Upload complete."
 '''
   }
   dependsOn: [
@@ -595,9 +599,10 @@ resource createKnowledgeSource 'Microsoft.Resources/deploymentScripts@2023-08-01
   name: '${resourcePrefix}-ks-create'
   location: location
   kind: 'AzureCLI'
+  // identity omitted (optional per spec)
   properties: {
     azCliVersion: '2.62.0'
-    timeout: 'PT60M'                 // ⚠️ was PT10M
+    timeout: 'PT60M'
     retentionInterval: 'P1D'
     forceUpdateTag: scriptForceTag
     environmentVariables: [
@@ -605,7 +610,7 @@ resource createKnowledgeSource 'Microsoft.Resources/deploymentScripts@2023-08-01
       { name: 'SEARCH_ADMIN_KEY', value: searchAdminKeysB.primaryKey }
       { name: 'KS_NAME', value: knowledgeSourceName }
       { name: 'STORAGE_CONN', secureValue: storageConnStrB }
-      { name: 'CONTAINER', value: documentsContainer.name }
+      { name: 'CONTAINER', value: documentsContainer.name }  // 'documents'
       { name: 'FOLDER', value: empty(blobFolderPath) ? '' : blobFolderPath }
       { name: 'AOAI_ENDPOINT', value: openAiEndpointB }
       { name: 'AOAI_KEY', secureValue: openAiKeysB.key1 }
@@ -616,9 +621,9 @@ resource createKnowledgeSource 'Microsoft.Resources/deploymentScripts@2023-08-01
       { name: 'USE_VERBALIZATION', value: string(useVerbalization) }
     ]
     scriptContent: '''
-set -euo pipefail
+set -e
 
-echo "[ks-create] Creating knowledge source '${KS_NAME}' at ${SEARCH_URL}"
+echo "Creating knowledge source '${KS_NAME}' at ${SEARCH_URL}"
 
 # If FOLDER is empty, send JSON null; otherwise send the string value
 if [ -z "${FOLDER}" ]; then
@@ -635,7 +640,7 @@ if [ "${USE_VERBALIZATION}" = "true" ]; then
   "azureBlobParameters": {
     "connectionString": "${STORAGE_CONN}",
     "containerName": "${CONTAINER}",
-    "folderPath": __FP_JSON__,
+    "folderPath": ${FP_JSON},
     "embeddingModel": {
       "kind": "azureOpenAI",
       "azureOpenAIParameters": {
@@ -666,7 +671,7 @@ else
   "azureBlobParameters": {
     "connectionString": "${STORAGE_CONN}",
     "containerName": "${CONTAINER}",
-    "folderPath": __FP_JSON__,
+    "folderPath": ${FP_JSON},
     "embeddingModel": {
       "kind": "azureOpenAI",
       "azureOpenAIParameters": {
@@ -682,28 +687,20 @@ else
 JSON
 fi
 
-# Patch in the folderPath JSON (null vs. string) safely
-python3 - << PY
-import json
-s = open('body.json','r',encoding='utf-8').read()
-s = s.replace('__FP_JSON__', 'null' if "${FP_JSON}" == "null" else json.dumps("${FOLDER}"))
-open('body.json','w',encoding='utf-8').write(s)
-print("[ks-create] Prepared body.json with folderPath")
-PY
-
-echo "[ks-create] Sending PUT (this returns immediately; ingestion is async)..."
+# PUT knowledge source (preview api-version)
 az rest \
   --method put \
   --url "${SEARCH_URL}/knowledgeSources/${KS_NAME}?api-version=2025-08-01-preview" \
   --headers "Content-Type=application/json" "api-key=${SEARCH_ADMIN_KEY}" \
-  --body @body.json \
-  --only-show-errors \
-  --output none
+  --body @body.json
 
-echo "✅ [ks-create] Knowledge source '${KS_NAME}' registered. Ingestion continues asynchronously."
+echo "Knowledge source created/updated: ${KS_NAME}"
 '''
   }
   dependsOn: [
     uploadDocs
   ]
 }
+
+@description('Knowledge Source name')
+output knowledgeSourceOut string = knowledgeSourceName
