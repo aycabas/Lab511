@@ -34,7 +34,7 @@ param embeddingModelVersion string = '1'
 @description('Embedding model deployment capacity')
 @minValue(1)
 @maxValue(200)
-param embeddingModelCapacity int = 150
+param embeddingModelCapacity int = 30
 
 @description('GPT-5 model name')
 param gpt5ModelName string = 'gpt-5'
@@ -106,7 +106,7 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2023-05-01' = {
       }
       keySource: 'Microsoft.Storage'
     }
-    networkAcls: {
+    networkRuleSet: {
       bypass: 'AzureServices'
       virtualNetworkRules: []
       ipRules: []
