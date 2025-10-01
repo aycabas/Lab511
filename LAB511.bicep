@@ -461,7 +461,7 @@ resource uploadDocs 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
   properties: {
     azCliVersion: '2.62.0'
     timeout: 'PT30M'
-    forceUpdateTag: utcNow()
+    forceUpdateTag: 'v1'
     environmentVariables: [
       { name: 'ZIP_URL', value: repoZipUrl }
       { name: 'DATA_FOLDER', value: repoDataFolder }
@@ -486,7 +486,6 @@ if [ ! -d "${DATA_FOLDER}" ]; then
 fi
 
 echo "Uploading contents of ${DATA_FOLDER} to container ${CONTAINER}"
-# Use connection string auth (works regardless of az login state)
 az storage blob upload-batch \
   --connection-string "${CONN_STR}" \
   --destination "${CONTAINER}" \
@@ -511,7 +510,7 @@ echo "Upload complete."
 param knowledgeSourceName string = 'blob-knowledge-source'
 
 @description('Optional virtual folder inside the documents container (empty = root).')
-param blobFolderPath string = ''  // e.g., '' or 'benefitdocs' if you want to restrict
+param blobFolderPath string = ''  // e.g., '' or 'benefitdocs'
 
 @description('Enable image verbalization using chat model (GPT-5 or GPT-5-mini).')
 param useVerbalization bool = false
@@ -525,7 +524,6 @@ var openAiKeysB = listKeys(openAiService.id, '2023-10-01-preview')
 var openAiEndpointB = openAiService.properties.endpoint
 
 // Choose which chat deployment to use when useVerbalization = true
-// Switch to resourceNames.gpt5MiniDeployment / gpt5MiniModelName if you prefer mini.
 var chatDeploymentForVerbalization = resourceNames.gpt5Deployment
 var chatModelForVerbalization = gpt5ModelName
 
@@ -539,7 +537,7 @@ resource createKnowledgeSource 'Microsoft.Resources/deploymentScripts@2023-08-01
   properties: {
     azCliVersion: '2.62.0'
     timeout: 'PT30M'
-    forceUpdateTag: utcNow()
+    forceUpdateTag: forceUpdateTag
     environmentVariables: [
       { name: 'SEARCH_URL', value: searchEndpointB }
       { name: 'SEARCH_ADMIN_KEY', value: searchAdminKeysB.primaryKey }
@@ -560,6 +558,13 @@ set -e
 
 echo "Creating knowledge source '${KS_NAME}' at ${SEARCH_URL}"
 
+# If FOLDER is empty, send JSON null; otherwise send the string value
+if [ -z "${FOLDER}" ]; then
+  FP_JSON=null
+else
+  FP_JSON="\"${FOLDER}\""
+fi
+
 if [ "${USE_VERBALIZATION}" = "true" ]; then
   cat > body.json << JSON
 {
@@ -568,7 +573,7 @@ if [ "${USE_VERBALIZATION}" = "true" ]; then
   "azureBlobParameters": {
     "connectionString": "${STORAGE_CONN}",
     "containerName": "${CONTAINER}",
-    "folderPath": "${FOLDER}",
+    "folderPath": ${FP_JSON},
     "embeddingModel": {
       "kind": "azureOpenAI",
       "azureOpenAIParameters": {
@@ -599,7 +604,7 @@ else
   "azureBlobParameters": {
     "connectionString": "${STORAGE_CONN}",
     "containerName": "${CONTAINER}",
-    "folderPath": "${FOLDER}",
+    "folderPath": ${FP_JSON},
     "embeddingModel": {
       "kind": "azureOpenAI",
       "azureOpenAIParameters": {
@@ -626,7 +631,6 @@ echo "Knowledge source created/updated: ${KS_NAME}"
 '''
     retentionInterval: 'P1D'
   }
-  // Ensure upload is done before creating the KS
   dependsOn: [
     uploadDocs
     searchService
@@ -636,6 +640,5 @@ echo "Knowledge source created/updated: ${KS_NAME}"
   ]
 }
 
-// Outputs for convenience
 @description('Knowledge Source name')
 output knowledgeSourceOut string = knowledgeSourceName
