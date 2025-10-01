@@ -175,9 +175,20 @@ resource searchService 'Microsoft.Search/searchServices@2023-11-01' = {
   }
 }
 
-// ---------------------------------------------------
-// Conditional role assignments for the search service (inlined)
-// ---------------------------------------------------
+// ===============================================
+// SERVICE PRINCIPAL ROLE ASSIGNMENTS
+// ===============================================
+
+// Cognitive Services User
+resource CogsUserSPRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(subscription().id, resourceGroup().id, searchService.name, 'a97b65f3-24c7-4388-baec-2e87135dc908')
+  properties: {
+    principalId: searchService.identity.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: resourceId('Microsoft.Authorization/roleDefinitions', 'a97b65f3-24c7-4388-baec-2e87135dc908')
+  }
+}
+
 // OpenAI host role assignment (scoped to the OpenAI resource group's scope)
 resource openAiRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(subscription().id, resourceGroup().id, searchService.name, '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd')
@@ -278,6 +289,16 @@ resource userOpenAiUserRoleAssignment 'Microsoft.Authorization/roleAssignments@2
   }
 }
 
+// Cognitive Services User
+resource CogsUserRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(subscription().id, resourceGroup().id, searchService.name, 'a97b65f3-24c7-4388-baec-2e87135dc908')
+  properties: {
+    principalId: searchService.identity.principalId
+    principalType: 'User'
+    roleDefinitionId: resourceId('Microsoft.Authorization/roleDefinitions', 'a97b65f3-24c7-4388-baec-2e87135dc908')
+  }
+}
+
 // ===============================================
 // AZURE OPENAI SERVICE
 // ===============================================
@@ -285,7 +306,7 @@ resource userOpenAiUserRoleAssignment 'Microsoft.Authorization/roleAssignments@2
 @description('Azure OpenAI service for AI models and embeddings')
 resource openAiService 'Microsoft.CognitiveServices/accounts@2023-10-01-preview' = {
   name: resourceNames.openAiService
-  location: location
+  location: 'swedencentral'
   sku: {
     name: openAiSku
   }
@@ -418,18 +439,145 @@ output gpt5MiniDeploymentName string = gpt5MiniModelDeployment.name
 output labUserObjectId string = labUserObjectId
 
 // ===============================================
-// USAGE NOTES
+// KNOWLEDGE SOURCE (data-plane via deployment script)
 // ===============================================
-/*
 
-DEPLOYMENT COMMAND:
-# Deploy to an existing resource group
-az deployment group create --resource-group <your-existing-rg-name> --template-file LAB565.bicep --parameters resourcePrefix=<your-prefix>
+@description('Name of the knowledge source to create in Azure AI Search.')
+param knowledgeSourceName string = 'blob-knowledge-source'
 
-# Example with specific values:
-az deployment group create --resource-group rg-copilot-lab --template-file LAB565.bicep --parameters resourcePrefix=mylab565
+@description('Optional virtual folder inside the documents container (empty = root).')
+param blobFolderPath string = ''
 
-# To deploy with custom parameters:
-az deployment group create --resource-group <your-existing-rg-name> --template-file LAB565.bicep --parameters resourcePrefix=<your-prefix> storageAccountSku=Standard_GRS searchServiceSku=standard embeddingModelName=text-embedding-3-small
+@description('If true, enable image verbalization using the chat model deployment.')
+param useVerbalization bool = false
 
-*/
+// -- Keys / endpoints we need for the REST call
+var saKeys = listKeys(storageAccount.id, '2023-05-01')
+var storageConnectionString = 'DefaultEndpointsProtocol=https;AccountName=${storageAccount.name};AccountKey=${saKeys.keys[0].value};EndpointSuffix=${environment().suffixes.storage}'
+
+var searchAdminKeys = listAdminKeys(searchService.id, '2023-11-01')
+var searchEndpoint = 'https://${searchService.name}.search.windows.net'
+
+// OpenAI: get key + endpoint + deployment names already defined above
+var openAiKeys = listKeys(openAiService.id, '2023-10-01-preview')
+var openAiEndpoint = openAiService.properties.endpoint
+
+// Choose which chat deployment to reference for verbalization (you can switch to mini if you like)
+var chatDeploymentName = resourceNames.gpt5Deployment
+var chatModelName = gpt5ModelName
+
+// Script env values
+var envs = [
+  { name: 'SEARCH_URL', value: searchEndpoint }
+  { name: 'SEARCH_ADMIN_KEY', value: searchAdminKeys.primaryKey }
+  { name: 'KS_NAME', value: knowledgeSourceName }
+  { name: 'STORAGE_CONN', secureValue: storageConnectionString }
+  { name: 'CONTAINER', value: documentsContainer.name }
+  { name: 'FOLDER', value: empty(blobFolderPath) ? '' : blobFolderPath }
+  { name: 'AOAI_ENDPOINT', value: openAiEndpoint }
+  { name: 'AOAI_KEY', secureValue: openAiKeys.key1 }
+  { name: 'EMBED_DEPLOYMENT', value: resourceNames.embeddingDeployment }
+  { name: 'EMBED_MODEL', value: embeddingModelName }
+  { name: 'CHAT_DEPLOYMENT', value: chatDeploymentName }
+  { name: 'CHAT_MODEL', value: chatModelName }
+  { name: 'USE_VERBALIZATION', value: string(useVerbalization) }
+]
+
+// Creates/updates the Knowledge Source via Search data-plane (preview API)
+resource createKnowledgeSource 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
+  name: '${resourcePrefix}-ks-create'
+  location: location
+  kind: 'AzureCLI'
+  identity: {
+    type: 'SystemAssigned'
+  }
+  properties: {
+    azCliVersion: '2.62.0'
+    timeout: 'PT30M'
+    forceUpdateTag: utcNow()
+    environmentVariables: envs
+    // Using pure bash + here-docs (no jq dependency)
+    scriptContent: '''
+set -e
+
+echo "Creating knowledge source: ${KS_NAME} in ${SEARCH_URL}"
+
+if [ "${USE_VERBALIZATION}" = "true" ]; then
+  cat > body.json << JSON
+{
+  "name": "${KS_NAME}",
+  "kind": "azureBlob",
+  "azureBlobParameters": {
+    "connectionString": "${STORAGE_CONN}",
+    "containerName": "${CONTAINER}",
+    "folderPath": "${FOLDER}",
+    "embeddingModel": {
+      "kind": "azureOpenAI",
+      "azureOpenAIParameters": {
+        "resourceUri": "${AOAI_ENDPOINT}",
+        "deploymentId": "${EMBED_DEPLOYMENT}",
+        "apiKey": "${AOAI_KEY}",
+        "modelName": "${EMBED_MODEL}"
+      }
+    },
+    "chatCompletionModel": {
+      "kind": "azureOpenAI",
+      "azureOpenAIParameters": {
+        "resourceUri": "${AOAI_ENDPOINT}",
+        "deploymentId": "${CHAT_DEPLOYMENT}",
+        "apiKey": "${AOAI_KEY}",
+        "modelName": "${CHAT_MODEL}"
+      }
+    },
+    "disableImageVerbalization": false
+  }
+}
+JSON
+else
+  cat > body.json << JSON
+{
+  "name": "${KS_NAME}",
+  "kind": "azureBlob",
+  "azureBlobParameters": {
+    "connectionString": "${STORAGE_CONN}",
+    "containerName": "${CONTAINER}",
+    "folderPath": "${FOLDER}",
+    "embeddingModel": {
+      "kind": "azureOpenAI",
+      "azureOpenAIParameters": {
+        "resourceUri": "${AOAI_ENDPOINT}",
+        "deploymentId": "${EMBED_DEPLOYMENT}",
+        "apiKey": "${AOAI_KEY}",
+        "modelName": "${EMBED_MODEL}"
+      }
+    },
+    "disableImageVerbalization": true
+  }
+}
+JSON
+fi
+
+# PUT knowledge source (preview api-version)
+az rest \
+  --method put \
+  --url "${SEARCH_URL}/knowledgeSources/${KS_NAME}?api-version=2025-08-01-preview" \
+  --headers "Content-Type=application/json" "api-key=${SEARCH_ADMIN_KEY}" \
+  --body @body.json
+
+echo "Knowledge source created/updated: ${KS_NAME}"
+'''
+    retentionInterval: 'P1D'
+  }
+  dependsOn: [
+    documentsContainer
+    searchService
+    embeddingModelDeployment
+    gpt5ModelDeployment
+    gpt5MiniModelDeployment
+  ]
+}
+
+// Helpful outputs
+@description('Knowledge Source name')
+output knowledgeSourceName string = knowledgeSourceName
+
