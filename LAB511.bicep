@@ -442,6 +442,9 @@ output labUserObjectId string = labUserObjectId
 // STEP 1: Upload documents from GitHub repo to Blob
 // ===============================================
 
+@description('Change this value to force deploymentScripts to re-execute (e.g., v1 → v2).')
+param scriptForceTag string = 'v1'
+
 @description('GitHub repository zip URL containing the data folder.')
 param repoZipUrl string = 'https://github.com/aycabas/Lab511/archive/refs/heads/main.zip'
 
@@ -455,13 +458,13 @@ resource uploadDocs 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
   name: '${resourcePrefix}-upload-docs'
   location: location
   kind: 'AzureCLI'
-  identity: {
-    type: 'SystemAssigned'
-  }
+  // identity omitted (optional per spec)
   properties: {
     azCliVersion: '2.62.0'
     timeout: 'PT30M'
-    forceUpdateTag: 'v1'
+    retentionInterval: 'P1D'
+    // String only (no utcNow()). Bump scriptForceTag to re-run.
+    forceUpdateTag: scriptForceTag
     environmentVariables: [
       { name: 'ZIP_URL', value: repoZipUrl }
       { name: 'DATA_FOLDER', value: repoDataFolder }
@@ -469,6 +472,7 @@ resource uploadDocs 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
       { name: 'CONN_STR', secureValue: storageConnStrA }
       { name: 'ACCOUNT', value: storageAccount.name }
     ]
+    // Using Python's zipfile (no dependency on 'unzip')
     scriptContent: '''
 set -e
 
@@ -477,8 +481,12 @@ mkdir -p /tmp/lab511
 cd /tmp/lab511
 curl -L -o repo.zip "${ZIP_URL}"
 
-echo "Unzipping..."
-unzip -q repo.zip
+echo "Extracting via python zipfile..."
+python3 - << 'PY'
+import zipfile
+with zipfile.ZipFile('repo.zip') as z:
+    z.extractall('.')
+PY
 
 if [ ! -d "${DATA_FOLDER}" ]; then
   echo "ERROR: Expected data folder '${DATA_FOLDER}' not found in archive."
@@ -495,7 +503,6 @@ az storage blob upload-batch \
 
 echo "Upload complete."
 '''
-    retentionInterval: 'P1D'
   }
   dependsOn: [
     documentsContainer
@@ -503,7 +510,7 @@ echo "Upload complete."
 }
 
 // ===============================================
-// STEP B: Create Blob Knowledge Source (data-plane via REST)
+// STEP 2: Create Blob Knowledge Source (data-plane via REST)
 // ===============================================
 
 @description('Name of the knowledge source to create in Azure AI Search.')
@@ -531,13 +538,12 @@ resource createKnowledgeSource 'Microsoft.Resources/deploymentScripts@2023-08-01
   name: '${resourcePrefix}-ks-create'
   location: location
   kind: 'AzureCLI'
-  identity: {
-    type: 'SystemAssigned'
-  }
+  // identity omitted (optional per spec)
   properties: {
     azCliVersion: '2.62.0'
     timeout: 'PT30M'
-    forceUpdateTag: 'v1'
+    retentionInterval: 'P1D'
+    forceUpdateTag: scriptForceTag
     environmentVariables: [
       { name: 'SEARCH_URL', value: searchEndpointB }
       { name: 'SEARCH_ADMIN_KEY', value: searchAdminKeysB.primaryKey }
@@ -629,7 +635,6 @@ az rest \
 
 echo "Knowledge source created/updated: ${KS_NAME}"
 '''
-    retentionInterval: 'P1D'
   }
   dependsOn: [
     uploadDocs
