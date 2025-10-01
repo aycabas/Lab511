@@ -176,6 +176,102 @@ resource searchService 'Microsoft.Search/searchServices@2023-11-01' = {
 }
 
 // ===============================================
+// AZURE OPENAI SERVICE
+// ===============================================
+
+@description('Azure OpenAI service for AI models and embeddings')
+resource openAiService 'Microsoft.CognitiveServices/accounts@2023-10-01-preview' = {
+  name: resourceNames.openAiService
+  location: 'swedencentral'
+  sku: {
+    name: openAiSku
+  }
+  kind: 'OpenAI'
+  properties: {
+    apiProperties: {
+      statisticsEnabled: false
+    }
+    customSubDomainName: resourceNames.openAiService
+    networkAcls: {
+      defaultAction: 'Allow'
+      virtualNetworkRules: []
+      ipRules: []
+    }
+    publicNetworkAccess: 'Enabled'
+    disableLocalAuth: false
+  }
+  identity: {
+    type: 'SystemAssigned'
+  }
+}
+
+// ===============================================
+// TEXT EMBEDDING MODEL DEPLOYMENT
+// ===============================================
+
+@description('Text embedding model deployment for vector generation')
+resource embeddingModelDeployment 'Microsoft.CognitiveServices/accounts/deployments@2023-10-01-preview' = {
+  parent: openAiService
+  name: resourceNames.embeddingDeployment
+  properties: {
+    model: {
+      format: 'OpenAI'
+      name: embeddingModelName
+      version: embeddingModelVersion
+    }
+    raiPolicyName: 'Microsoft.Default'
+  }
+  sku: {
+    name: 'Standard'
+    capacity: embeddingModelCapacity
+  }
+}
+
+// ===============================================
+// GPT-5 MODEL DEPLOYMENT
+// ===============================================
+
+@description('GPT-5 model deployment for chat and reasoning')
+resource gpt5ModelDeployment 'Microsoft.CognitiveServices/accounts/deployments@2023-10-01-preview' = {
+  parent: openAiService
+  name: resourceNames.gpt5Deployment
+  properties: {
+    model: {
+      format: 'OpenAI'
+      name: gpt5ModelName
+      version: gpt5ModelVersion
+    }
+    raiPolicyName: 'Microsoft.Default'
+  }
+  sku: {
+    name: 'GlobalStandard'
+    capacity: gpt5Capacity
+  }
+}
+
+// ===============================================
+// GPT-5 MINI MODEL DEPLOYMENT
+// ===============================================
+
+@description('GPT-5 mini model deployment for lightweight chat tasks')
+resource gpt5MiniModelDeployment 'Microsoft.CognitiveServices/accounts/deployments@2023-10-01-preview' = {
+  parent: openAiService
+  name: resourceNames.gpt5MiniDeployment
+  properties: {
+    model: {
+      format: 'OpenAI'
+      name: gpt5MiniModelName
+      version: gpt5MiniModelVersion
+    }
+    raiPolicyName: 'Microsoft.Default'
+  }
+  sku: {
+    name: 'GlobalStandard'
+    capacity: gpt5MiniCapacity
+  }
+}
+
+// ===============================================
 // SERVICE PRINCIPAL ROLE ASSIGNMENTS
 // ===============================================
 
@@ -292,106 +388,11 @@ resource userOpenAiUserRoleAssignment 'Microsoft.Authorization/roleAssignments@2
 // Cognitive Services User
 resource CogsUserRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(subscription().id, resourceGroup().id, searchService.name, 'a97b65f3-24c7-4388-baec-2e87135dc908')
+  scope: searchService
   properties: {
     principalId: labUserObjectId
     principalType: 'User'
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'a97b65f3-24c7-4388-baec-2e87135dc908')
-  }
-}
-
-// ===============================================
-// AZURE OPENAI SERVICE
-// ===============================================
-
-@description('Azure OpenAI service for AI models and embeddings')
-resource openAiService 'Microsoft.CognitiveServices/accounts@2023-10-01-preview' = {
-  name: resourceNames.openAiService
-  location: 'swedencentral'
-  sku: {
-    name: openAiSku
-  }
-  kind: 'OpenAI'
-  properties: {
-    apiProperties: {
-      statisticsEnabled: false
-    }
-    customSubDomainName: resourceNames.openAiService
-    networkAcls: {
-      defaultAction: 'Allow'
-      virtualNetworkRules: []
-      ipRules: []
-    }
-    publicNetworkAccess: 'Enabled'
-    disableLocalAuth: false
-  }
-  identity: {
-    type: 'SystemAssigned'
-  }
-}
-
-// ===============================================
-// TEXT EMBEDDING MODEL DEPLOYMENT
-// ===============================================
-
-@description('Text embedding model deployment for vector generation')
-resource embeddingModelDeployment 'Microsoft.CognitiveServices/accounts/deployments@2023-10-01-preview' = {
-  parent: openAiService
-  name: resourceNames.embeddingDeployment
-  properties: {
-    model: {
-      format: 'OpenAI'
-      name: embeddingModelName
-      version: embeddingModelVersion
-    }
-    raiPolicyName: 'Microsoft.Default'
-  }
-  sku: {
-    name: 'Standard'
-    capacity: embeddingModelCapacity
-  }
-}
-
-// ===============================================
-// GPT-5 MODEL DEPLOYMENT
-// ===============================================
-
-@description('GPT-5 model deployment for chat and reasoning')
-resource gpt5ModelDeployment 'Microsoft.CognitiveServices/accounts/deployments@2023-10-01-preview' = {
-  parent: openAiService
-  name: resourceNames.gpt5Deployment
-  properties: {
-    model: {
-      format: 'OpenAI'
-      name: gpt5ModelName
-      version: gpt5ModelVersion
-    }
-    raiPolicyName: 'Microsoft.Default'
-  }
-  sku: {
-    name: 'GlobalStandard'
-    capacity: gpt5Capacity
-  }
-}
-
-// ===============================================
-// GPT-5 MINI MODEL DEPLOYMENT
-// ===============================================
-
-@description('GPT-5 mini model deployment for lightweight chat tasks')
-resource gpt5MiniModelDeployment 'Microsoft.CognitiveServices/accounts/deployments@2023-10-01-preview' = {
-  parent: openAiService
-  name: resourceNames.gpt5MiniDeployment
-  properties: {
-    model: {
-      format: 'OpenAI'
-      name: gpt5MiniModelName
-      version: gpt5MiniModelVersion
-    }
-    raiPolicyName: 'Microsoft.Default'
-  }
-  sku: {
-    name: 'GlobalStandard'
-    capacity: gpt5MiniCapacity
   }
 }
 
