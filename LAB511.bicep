@@ -501,7 +501,21 @@ var saKeysA = listKeys(storageAccount.id, '2023-05-01')
 var storageConnStrA = 'DefaultEndpointsProtocol=https;AccountName=${storageAccount.name};AccountKey=${saKeysA.keys[0].value};EndpointSuffix=${environment().suffixes.storage}'
 
 resource uploadDocs 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
-scriptContent: '''
+  name: '${resourcePrefix}-upload-docs'
+  location: location
+  kind: 'AzureCLI'
+  properties: {
+    azCliVersion: '2.62.0'
+    timeout: 'PT30M'
+    retentionInterval: 'P1D'
+    forceUpdateTag: scriptForceTag
+    environmentVariables: [
+      { name: 'ZIP_URL', value: repoZipUrl }
+      { name: 'DATA_FOLDER', value: repoDataFolder }
+      { name: 'CONTAINER', value: documentsContainer.name } // 'documents'
+      { name: 'CONN_STR', secureValue: storageConnStrA }
+    ]
+    scriptContent: '''
 set -e
 
 echo "Downloading repo zip to /tmp/lab511/repo.zip ..."
@@ -542,8 +556,12 @@ az storage blob upload-batch \
 
 echo "Upload complete."
 '''
-
+  }
+  dependsOn: [
+    documentsContainer
+  ]
 }
+
 
 // ===============================================
 // STEP 2: Create Blob Knowledge Source (data-plane via REST)
@@ -567,8 +585,8 @@ var openAiKeysB = listKeys(openAiService.id, '2023-10-01-preview')
 var openAiEndpointB = openAiService.properties.endpoint
 
 // Choose which chat deployment to use when useVerbalization = true
-var chatDeploymentForVerbalization = resourceNames.gpt5MiniModelDeployment
-var chatModelForVerbalization = gpt5MiniDeploymentName
+var chatDeploymentForVerbalization = resourceNames.gpt5MiniDeployment
+var chatModelForVerbalization = gpt5MiniModelName
 
 resource createKnowledgeSource 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
   name: '${resourcePrefix}-ks-create'
@@ -674,10 +692,6 @@ echo "Knowledge source created/updated: ${KS_NAME}"
   }
   dependsOn: [
     uploadDocs
-    searchService
-    embeddingModelDeployment
-    gpt5ModelDeployment
-    gpt5MiniModelDeployment
   ]
 }
 
