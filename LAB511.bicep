@@ -537,7 +537,7 @@ resource createKnowledgeSource 'Microsoft.Resources/deploymentScripts@2023-08-01
   properties: {
     azCliVersion: '2.62.0'
     timeout: 'PT30M'
-    forceUpdateTag: forceUpdateTag
+    forceUpdateTag: 'v1'
     environmentVariables: [
       { name: 'SEARCH_URL', value: searchEndpointB }
       { name: 'SEARCH_ADMIN_KEY', value: searchAdminKeysB.primaryKey }
