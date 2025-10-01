@@ -212,6 +212,17 @@ resource storageContributorRoleAssignment 'Microsoft.Authorization/roleAssignmen
 // LAB USER ROLE ASSIGNMENTS
 // ===============================================
 
+// Contributor at RG scope
+resource userRgContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(subscription().id, resourceGroup().id, labUserObjectId, 'b24988ac-6180-42a0-ab88-20f7382dd24c')
+  scope: resourceGroup()
+  properties: {
+    principalId: labUserObjectId
+    principalType: 'User'
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b24988ac-6180-42a0-ab88-20f7382dd24c')
+  }
+}
+
 // Storage Blob Data Contributor role for lab user
 resource userStorageContributorRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(subscription().id, resourceGroup().id, storageAccount.name, labUserObjectId, 'ba92f5b4-2d11-453d-a403-e96b0029c9fe')
@@ -219,7 +230,7 @@ resource userStorageContributorRoleAssignment 'Microsoft.Authorization/roleAssig
   properties: {
     principalId: labUserObjectId
     principalType: 'User'
-    roleDefinitionId: resourceId('Microsoft.Authorization/roleDefinitions', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe')
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe')
   }
 }
 
@@ -230,7 +241,29 @@ resource userSearchContributorRoleAssignment 'Microsoft.Authorization/roleAssign
   properties: {
     principalId: labUserObjectId
     principalType: 'User'
-    roleDefinitionId: resourceId('Microsoft.Authorization/roleDefinitions', '7ca78c08-252a-4471-8644-bb5ff32d4ba0')
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7ca78c08-252a-4471-8644-bb5ff32d4ba0')
+  }
+}
+
+// Search Index Data Contributor role for lab user
+resource userSearchIndexContributorRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(subscription().id, resourceGroup().id, searchService.name, labUserObjectId, '8ebe5a00-799e-43f5-93ac-243d3dce84a7')
+  scope: searchService
+  properties: {
+    principalId: labUserObjectId
+    principalType: 'User'
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '8ebe5a00-799e-43f5-93ac-243d3dce84a7')
+  }
+}
+
+// Cognitive Services Contributor role for lab user
+resource userOpenAiContributorRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(subscription().id, resourceGroup().id, openAiService.name, labUserObjectId, '25fbc0a9-bd7c-42a3-aa1a-3b75d497ee68')
+  scope: openAiService
+  properties: {
+    principalId: labUserObjectId
+    principalType: 'User'
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '25fbc0a9-bd7c-42a3-aa1a-3b75d497ee68')
   }
 }
 
@@ -241,7 +274,7 @@ resource userOpenAiUserRoleAssignment 'Microsoft.Authorization/roleAssignments@2
   properties: {
     principalId: labUserObjectId
     principalType: 'User'
-    roleDefinitionId: resourceId('Microsoft.Authorization/roleDefinitions', '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd')
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd')
   }
 }
 
